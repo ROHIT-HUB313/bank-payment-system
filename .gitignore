@@ -1,0 +1,12 @@
+# IntelliJ
+.idea/
+
+# Gradle cache
+.gradle/
+
+# Build outputs (all services)
+**/build/
+
+# OS
+.DS_Store
+Thumbs.db
