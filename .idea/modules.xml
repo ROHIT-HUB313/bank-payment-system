@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/admin-engine/bank-payment-system.admin-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/admin-engine/bank-payment-system.admin-engine.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/api-gateway-engine/bank-payment-system.api-gateway-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/api-gateway-engine/bank-payment-system.api-gateway-engine.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/bank-engine/bank-payment-system.bank-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/bank-engine/bank-payment-system.bank-engine.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/discovery-engine/bank-payment-system.discovery-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/discovery-engine/bank-payment-system.discovery-engine.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/transaction-engine/bank-payment-system.transaction-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/transaction-engine/bank-payment-system.transaction-engine.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/user-engine/bank-payment-system.user-engine.main.iml" filepath="$PROJECT_DIR$/.idea/modules/user-engine/bank-payment-system.user-engine.main.iml" />
+    </modules>
+  </component>
+</project>

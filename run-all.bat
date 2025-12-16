@@ -1,0 +1,26 @@
+@echo off
+
+echo Starting Eureka Discovery Server...
+start cmd /k "cd discovery-engine && ..\gradlew.bat bootRun"
+echo Waiting 30 seconds for Eureka to be ready...
+timeout /t 30 /nobreak
+
+echo Starting User Service...
+start cmd /k "cd user-engine && ..\gradlew.bat bootRun"
+
+echo Starting Bank Service...
+start cmd /k "cd bank-engine && ..\gradlew.bat bootRun"
+
+echo Starting Transaction Service...
+start cmd /k "cd transaction-engine && ..\gradlew.bat bootRun"
+
+echo Starting Admin Service...
+start cmd /k "cd admin-engine && ..\gradlew.bat bootRun"
+
+echo Waiting 10 seconds before Gateway startup...
+timeout /t 10 /nobreak
+
+echo Starting API Gateway...
+start cmd /k "cd api-gateway-engine && ..\gradlew.bat bootRun"
+
+echo ALL MICROSERVICES STARTED SUCCESSFULLY!

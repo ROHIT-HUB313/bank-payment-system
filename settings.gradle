@@ -1,0 +1,9 @@
+
+rootProject.name = 'bank-payment-system'
+
+include 'discovery-engine'
+include 'api-gateway-engine'
+include 'user-engine'
+include 'bank-engine'
+include 'transaction-engine'
+include 'admin-engine'
