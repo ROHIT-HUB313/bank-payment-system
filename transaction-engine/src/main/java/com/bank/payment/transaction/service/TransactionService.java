@@ -9,8 +9,10 @@ import com.bank.payment.transaction.entity.Transaction;
 import com.bank.payment.transaction.entity.TransactionStatus;
 import com.bank.payment.transaction.entity.TransactionType;
 import com.bank.payment.transaction.repository.TransactionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,7 +22,8 @@ import java.util.UUID;
 // NOTE: This service uses synchronous Feign calls.
 // Database transactions do NOT roll back remote bank-engine state.
 @Service
-@lombok.RequiredArgsConstructor
+@RequiredArgsConstructor
+@Slf4j
 public class TransactionService {
 
     private final TransactionRepository repository;
@@ -32,10 +35,17 @@ public class TransactionService {
      * support, and ledger integrity.
      */
     public Transaction transfer(TransactionRequest request, Long userId) {
+        log.info("Transfer initiated: {} -> {}, amount: {}, key: {}",
+                request.getSenderAccountNumber(),
+                request.getReceiverAccountNumber(),
+                request.getAmount(),
+                request.getIdempotencyKey());
 
         // 0. Security Check: Ownership
         AccountDto senderAccount = bankClient.getAccount(request.getSenderAccountNumber());
         if (!senderAccount.getUserId().equals(userId)) {
+            log.error("Transfer authorization failed: sender account {} does not belong to user {}",
+                    request.getSenderAccountNumber(), userId);
             throw new RuntimeException("Unauthorized: Sender account does not belong to user");
         }
 
@@ -71,6 +81,10 @@ public class TransactionService {
 
         // If Debit Failed (even after retry), stop here.
         if (debitTx.getStatus() != TransactionStatus.SUCCESS) {
+            log.error("Transfer failed at DEBIT phase: key={}, status={}, utr={}",
+                    request.getIdempotencyKey(),
+                    debitTx.getStatus(),
+                    debitTx.getUtr());
             return debitTx;
             // In a real system, we might throw an exception,
             // but returning the FAILED record gives the caller the state.
@@ -91,38 +105,48 @@ public class TransactionService {
 
         // --- PHASE 3: COMPENSATION (If Credit Failed) ---
         if (creditTx.getStatus() != TransactionStatus.SUCCESS) {
+            log.error("Transfer failed at CREDIT phase, initiating reversal: key={}, status={}, utr={}",
+                    request.getIdempotencyKey(),
+                    creditTx.getStatus(),
+                    creditTx.getUtr());
             compensateDebit(debitTx, request.getIdempotencyKey());
             // We return the primary Debit record, but its associated Credit failed and was
             // reversed.
             // Documentation: "On failure → mark CREDIT FAILED Also create a REVERSAL"
-            throw new RuntimeException("Transfer Failed at Credit Stage. Amount Reversed.");
+            debitTx.setStatus(TransactionStatus.REVERSED);
+            repository.save(debitTx);
+            return debitTx;
         }
 
+        log.info("Transfer completed successfully: UTR={}, key={}",
+                debitTx.getUtr(),
+                request.getIdempotencyKey());
         return debitTx;
     }
 
-    private Transaction processDebit(String utr, TransactionRequest request) {
-        // Create or Update INITIATED
-        Transaction tx = createOrUpdateEntry(
+    @Transactional
+    public Transaction processDebit(String utr, TransactionRequest request) {
+        // 1️⃣ Claim idempotency FIRST
+        Transaction tx = createInitiatedOrReturnExisting(
                 utr,
                 request.getSenderAccountNumber(),
                 request.getAmount(),
                 TransactionType.DEBIT,
-                TransactionStatus.INITIATED,
-                request.getIdempotencyKey(),
-                null, null // Null balances initially
-        );
+                request.getIdempotencyKey());
+
+        // Already processed → never call bank again
+        if (tx.getStatus() != TransactionStatus.INITIATED) {
+            return tx;
+        }
 
         try {
-            // Call Bank Debit
-            // Opening balance is derived from post-operation balance returned by
-            // bank-engine.
-            AccountDto updatedAccount = bankClient.debit(BalanceModificationRequest.builder()
-                    .accountNumber(request.getSenderAccountNumber())
-                    .amount(request.getAmount())
-                    .build());
+            // 2️⃣ Safe remote call (only one thread reaches here)
+            AccountDto updatedAccount = bankClient.debit(
+                    BalanceModificationRequest.builder()
+                            .accountNumber(request.getSenderAccountNumber())
+                            .amount(request.getAmount())
+                            .build());
 
-            // Success Updates
             return createOrUpdateEntry(
                     utr,
                     request.getSenderAccountNumber(),
@@ -130,12 +154,10 @@ public class TransactionService {
                     TransactionType.DEBIT,
                     TransactionStatus.SUCCESS,
                     request.getIdempotencyKey(),
-                    updatedAccount.getCurrentBalance().add(request.getAmount()), // Opening
-                    updatedAccount.getCurrentBalance() // Closing
-            );
+                    updatedAccount.getCurrentBalance().add(request.getAmount()),
+                    updatedAccount.getCurrentBalance());
 
         } catch (Exception e) {
-            // Fail Updates (Balances null)
             return createOrUpdateEntry(
                     utr,
                     request.getSenderAccountNumber(),
@@ -143,26 +165,31 @@ public class TransactionService {
                     TransactionType.DEBIT,
                     TransactionStatus.FAILED,
                     request.getIdempotencyKey(),
-                    null, null);
+                    null,
+                    null);
         }
     }
 
-    private Transaction processCredit(String utr, TransactionRequest request) {
-        Transaction tx = createOrUpdateEntry(
+    @Transactional
+    public Transaction processCredit(String utr, TransactionRequest request) {
+        // 1️⃣ Claim idempotency FIRST
+        Transaction tx = createInitiatedOrReturnExisting(
                 utr,
                 request.getReceiverAccountNumber(),
                 request.getAmount(),
                 TransactionType.CREDIT,
-                TransactionStatus.INITIATED,
-                request.getIdempotencyKey(),
-                null, null);
+                request.getIdempotencyKey());
+
+        if (tx.getStatus() != TransactionStatus.INITIATED) {
+            return tx;
+        }
 
         try {
-            // Call Bank Credit
-            AccountDto updatedAccount = bankClient.credit(BalanceModificationRequest.builder()
-                    .accountNumber(request.getReceiverAccountNumber())
-                    .amount(request.getAmount())
-                    .build());
+            AccountDto updatedAccount = bankClient.credit(
+                    BalanceModificationRequest.builder()
+                            .accountNumber(request.getReceiverAccountNumber())
+                            .amount(request.getAmount())
+                            .build());
 
             return createOrUpdateEntry(
                     utr,
@@ -171,9 +198,9 @@ public class TransactionService {
                     TransactionType.CREDIT,
                     TransactionStatus.SUCCESS,
                     request.getIdempotencyKey(),
-                    updatedAccount.getCurrentBalance().subtract(request.getAmount()), // Opening
-                    updatedAccount.getCurrentBalance() // Closing
-            );
+                    updatedAccount.getCurrentBalance().subtract(request.getAmount()),
+                    updatedAccount.getCurrentBalance());
+
         } catch (Exception e) {
             return createOrUpdateEntry(
                     utr,
@@ -182,7 +209,8 @@ public class TransactionService {
                     TransactionType.CREDIT,
                     TransactionStatus.FAILED,
                     request.getIdempotencyKey(),
-                    null, null);
+                    null,
+                    null);
         }
     }
 
@@ -237,7 +265,35 @@ public class TransactionService {
                     TransactionStatus.FAILED,
                     reversalKey,
                     null, null);
-            System.err.println("CRITICAL: Reversal Failed for UTR " + originalDebit.getUtr());
+            log.error("CRITICAL: Reversal failed for UTR {}, manual intervention required. Amount: {}, Account: {}",
+                    originalDebit.getUtr(),
+                    originalDebit.getAmount(),
+                    originalDebit.getAccountNumber(), e);
+        }
+    }
+
+    private Transaction createInitiatedOrReturnExisting(
+            String utr,
+            String account,
+            BigDecimal amount,
+            TransactionType type,
+            String idempotencyKey) {
+        try {
+            Transaction tx = new Transaction();
+            tx.setUtr(utr);
+            tx.setAccountNumber(account);
+            tx.setAmount(amount);
+            tx.setTransactionType(type);
+            tx.setStatus(TransactionStatus.INITIATED);
+            tx.setIdempotencyKey(idempotencyKey);
+            tx.setTimestamp(LocalDateTime.now());
+
+            return repository.save(tx); // 🔐 atomic claim
+
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // Already exists → safe read
+            return repository.findByIdempotencyKeyAndAccountNumberAndTransactionType(
+                    idempotencyKey, account, type).orElseThrow();
         }
     }
 
@@ -269,32 +325,57 @@ public class TransactionService {
     // --- Deposit and Withdraw (Single Leg) ---
 
     public Transaction deposit(BalanceModificationRequest request, Long userId) {
+        log.info("Deposit initiated: account={}, amount={}, key={}",
+                request.getAccountNumber(),
+                request.getAmount(),
+                request.getIdempotencyKey());
+
         // Security Check: Ownership
         AccountDto account = bankClient.getAccount(request.getAccountNumber());
         if (!account.getUserId().equals(userId)) {
+            log.error("Deposit authorization failed: account {} does not belong to user {}",
+                    request.getAccountNumber(), userId);
             throw new RuntimeException("Unauthorized: Account does not belong to user");
         }
 
-        String key = UUID.randomUUID().toString(); // Internal Key
-        return processSingleLeg(request.getAccountNumber(), request.getAmount(), TransactionType.CREDIT, key);
+        // String key = UUID.randomUUID().toString(); // Internal Key
+        String idempotencyKey = request.getIdempotencyKey();
+        return processSingleLeg(request.getAccountNumber(), request.getAmount(), TransactionType.CREDIT,
+                idempotencyKey);
     }
 
     public Transaction withdraw(BalanceModificationRequest request, Long userId) {
+        log.info("Withdrawal initiated: account={}, amount={}, key={}",
+                request.getAccountNumber(),
+                request.getAmount(),
+                request.getIdempotencyKey());
+
         // Security Check: Ownership
         AccountDto account = bankClient.getAccount(request.getAccountNumber());
         if (!account.getUserId().equals(userId)) {
+            log.error("Withdrawal authorization failed: account {} does not belong to user {}",
+                    request.getAccountNumber(), userId);
             throw new RuntimeException("Unauthorized: Account does not belong to user");
         }
 
-        String key = UUID.randomUUID().toString(); // Internal Key
-        return processSingleLeg(request.getAccountNumber(), request.getAmount(), TransactionType.DEBIT, key);
+        // String key = UUID.randomUUID().toString(); // Internal Key
+        String idempotencyKey = request.getIdempotencyKey();
+        return processSingleLeg(request.getAccountNumber(), request.getAmount(), TransactionType.DEBIT, idempotencyKey);
     }
 
-    private Transaction processSingleLeg(String accountNum, BigDecimal amount, TransactionType type, String key) {
-        String utr = UUID.randomUUID().toString();
+    @Transactional
+    public Transaction processSingleLeg(String accountNum, BigDecimal amount, TransactionType type, String key) {
+        Optional<Transaction> existing = repository
+                .findByIdempotencyKeyAndAccountNumberAndTransactionType(key, accountNum, type);
 
-        Transaction tx = createOrUpdateEntry(utr, accountNum, amount, type, TransactionStatus.INITIATED, key, null,
-                null);
+        String utr = existing.map(Transaction::getUtr)
+                .orElse(UUID.randomUUID().toString());
+
+        Transaction tx = createInitiatedOrReturnExisting(utr, accountNum, amount, type, key);
+
+        if (tx.getStatus() != TransactionStatus.INITIATED) {
+            return tx;
+        }
 
         try {
             AccountDto result;
