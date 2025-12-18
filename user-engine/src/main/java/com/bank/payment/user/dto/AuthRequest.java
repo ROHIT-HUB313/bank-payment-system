@@ -11,6 +11,9 @@ public class AuthRequest {
     @NotBlank(message = "Username is required")
     private String username;
 
+    /*@Pattern(
+            regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\\S+$).{8,}$",
+            message = "Password must be at least 8 characters with uppercase, lowercase, number, and special character")*/
     @NotBlank(message = "Password is required")
     private String password;
 

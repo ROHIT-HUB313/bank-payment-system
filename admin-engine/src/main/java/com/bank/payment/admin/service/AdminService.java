@@ -1,4 +1,3 @@
-
 package com.bank.payment.admin.service;
 
 import com.bank.payment.admin.client.TransactionClient;
@@ -6,13 +5,13 @@ import com.bank.payment.admin.client.UserClient;
 import com.bank.payment.admin.dto.TransactionDTO;
 import com.bank.payment.admin.dto.UserDTO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminService {
 
     private final UserClient userClient;
@@ -20,16 +19,24 @@ public class AdminService {
     private final TransactionClient transactionClient;
 
     public List<UserDTO> getAllUsers(String role) {
+        log.info("Admin action: Fetching all users, requestedBy role={}", role);
         if (!"ADMIN".equals(role)) {
-            throw new RuntimeException("ACCESS DENIED, ONLY ADMIN HAS PERMISSION");
+            log.error("Unauthorized admin access attempt: role={}", role);
+            throw new RuntimeException("Unauthorized: Admin access required");
         }
-        return userClient.getAllUsers();
+        List<UserDTO> users = userClient.getAllUsers();
+        log.info("Admin action: Retrieved {} users", users.size());
+        return users;
     }
 
     public List<TransactionDTO> getAllTransactions(String role) {
+        log.info("Admin action: Fetching all transactions, requestedBy role={}", role);
         if (!"ADMIN".equals(role)) {
-            throw new RuntimeException("ACCESS DENIED, ONLY ADMIN HAS PERMISSION");
+            log.error("Unauthorized admin access attempt: role={}", role);
+            throw new RuntimeException("Unauthorized: Admin access required");
         }
-        return transactionClient.getAllTransactions();
+        List<TransactionDTO> transactions = transactionClient.getAllTransactions();
+        log.info("Admin action: Retrieved {} transactions", transactions.size());
+        return transactions;
     }
 }

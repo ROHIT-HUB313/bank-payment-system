@@ -4,6 +4,8 @@ import lombok.Data;
 
 @Data
 public class UserDto {
+    //redundant, not in use for now!!
+
     private Long id;
     private String username;
     private String email;
