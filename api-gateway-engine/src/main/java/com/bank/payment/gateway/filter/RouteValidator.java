@@ -1,4 +1,3 @@
-
 package com.bank.payment.gateway.filter;
 
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -12,6 +11,7 @@ public class RouteValidator {
         public static final List<String> openApiEndpoints = List.of(
                         "/users/public/register",
                         "/users/public/token",
+                        "/users/public/reset-password",
                         "/eureka");
 
         public Predicate<ServerHttpRequest> isSecured = request -> openApiEndpoints

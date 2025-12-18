@@ -1,4 +1,3 @@
-
 package com.bank.payment.transaction.dto;
 
 import jakarta.validation.constraints.NotBlank;

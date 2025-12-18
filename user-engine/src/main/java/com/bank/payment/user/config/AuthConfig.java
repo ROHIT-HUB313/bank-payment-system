@@ -29,7 +29,8 @@ public class AuthConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/users/public/register", "/users/public/token", "/users/public/validate")
+                        .requestMatchers("/users/public/register", "/users/public/token",
+                                "/users/public/validate", "/users/public/reset-password")
                         .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

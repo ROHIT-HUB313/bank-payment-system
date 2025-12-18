@@ -228,15 +228,6 @@ public class TransactionService {
             return; // Already reversed
         }
 
-        // Create Reversal Entry
-        Transaction reversal = createOrUpdateEntry(
-                originalDebit.getUtr(),
-                originalDebit.getAccountNumber(),
-                originalDebit.getAmount(),
-                TransactionType.CREDIT,
-                TransactionStatus.INITIATED,
-                reversalKey,
-                null, null);
 
         try {
             // Perform Reversal (Credit back the sender)
