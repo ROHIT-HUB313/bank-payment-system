@@ -1,4 +1,3 @@
-
 # Bank Payment Microservices System
 
 A distributed banking system built with Spring Boot, Spring Cloud, and Gradle.
