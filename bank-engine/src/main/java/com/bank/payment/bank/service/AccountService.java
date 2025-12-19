@@ -6,6 +6,12 @@ import com.bank.payment.bank.entity.Account;
 import com.bank.payment.bank.exception.AccountNotFoundException;
 import com.bank.payment.bank.exception.InsufficientBalanceException;
 import com.bank.payment.bank.exception.InvalidAccountException;
+import com.bank.payment.bank.config.BranchConfig;
+import com.bank.payment.bank.dto.AccountResponse;
+import com.bank.payment.bank.dto.CreateAccountRequest;
+import com.bank.payment.bank.enums.AccountStatus;
+import com.bank.payment.bank.enums.AccountType;
+import com.bank.payment.bank.mapper.AccountMapper;
 import com.bank.payment.bank.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -22,31 +28,49 @@ import java.util.UUID;
 public class AccountService {
 
     private final AccountRepository repository;
-
     private final UserClient userClient;
+    private final BranchConfig branchConfig;
+    private final AccountMapper accountMapper;
 
-    public Account createAccount(Long userId, String username) {
-        log.info("Creating account for user: {}", userId);
+    public AccountResponse createAccount(Long userId, String username, CreateAccountRequest request) {
+        log.info("Creating account for user: {}, type: {}", userId, request.getAccountType());
+
+        String branchCode = request.getBranchCode() != null ? request.getBranchCode()
+                : branchConfig.getDefaultBranchCode();
+        BranchConfig.BranchDetails branchDetails = branchConfig.getBranchDetails(branchCode)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid Branch Code: " + branchCode));
+
+        if (!"INR".equals(request.getCurrency())) {
+            throw new IllegalArgumentException("Only INR currency is supported");
+        }
 
         Account account = new Account();
         account.setUserId(userId);
-        account.setAccountNumber(UUID.randomUUID().toString());
-        account.setCurrentBalance(BigDecimal.ZERO);
-        account.setCurrency("USD");
-        account.setAccountType("SAVINGS");
-        account.setAccountStatus("ACTIVE");
-        account.setIfscCode("BANK001");
-        account.setAddress("Head Office, New York");
+
+        AccountType type = AccountType.valueOf(request.getAccountType());
+        account.setCurrency(request.getCurrency());
+        account.setAccountType(type);
+        account.setAccountStatus(AccountStatus.ACTIVE);
+
+        account.setAccountNumber(generateAccountNumber());
+
+        account.setCurrentBalance(getInitialBalance(type));
+
+        account.setIfscCode(branchDetails.getIfscCode());
+        account.setAddress(branchDetails.getAddress());
+
         account.setCreatedOn(LocalDateTime.now());
         account.setCreatedBy(username);
+        account.setUpdatedBy(username);
+        account.setUpdatedOn(LocalDateTime.now());
 
         Account savedAccount = repository.save(account);
-        log.info("Account created successfully: accountNo={}, userId={}",
-                savedAccount.getAccountNumber(), userId);
+        log.info("Account created successfully: accountNo={}, userId={}, branch={}",
+                savedAccount.getAccountNumber(), userId, branchCode);
 
         updateKyc(userId);
 
-        return savedAccount;
+        return accountMapper.toResponse(savedAccount);
     }
 
     private void updateKyc(Long userId) {
@@ -60,7 +84,7 @@ public class AccountService {
         }
     }
 
-    public Account getAccountByAccountNo(String accountNo, Long userId) {
+    public AccountResponse getAccountByAccountNo(String accountNo, Long userId) {
         log.debug("Fetching account: accountNo={}, userId={}", accountNo, userId);
         Account account = repository.findByAccountNumber(accountNo)
                 .orElseThrow(() -> {
@@ -74,11 +98,11 @@ public class AccountService {
             throw new InvalidAccountException(
                     "Unauthorized: Account does not belong to user");
         }
-        return account;
+        return accountMapper.toResponse(account);
     }
 
     @Transactional
-    public Account credit(BalanceModificationRequest request) {
+    public AccountResponse credit(BalanceModificationRequest request) {
         log.info("Crediting account: accountNo={}, amount={}",
                 request.getAccountNumber(), request.getAmount());
         Account account = repository.findByAccountNumber(request.getAccountNumber())
@@ -90,11 +114,11 @@ public class AccountService {
         Account updated = repository.save(account);
         log.info("Account credited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
-        return updated;
+        return accountMapper.toResponse(updated);
     }
 
     @Transactional
-    public Account debit(BalanceModificationRequest request) {
+    public AccountResponse debit(BalanceModificationRequest request) {
         log.info("Debiting account: accountNo={}, amount={}",
                 request.getAccountNumber(), request.getAmount());
         Account account = repository.findByAccountNumber(request.getAccountNumber())
@@ -112,6 +136,21 @@ public class AccountService {
         Account updated = repository.save(account);
         log.info("Account debited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
-        return updated;
+        return accountMapper.toResponse(updated);
+    }
+
+    private String generateAccountNumber() {
+        long randomNum = ThreadLocalRandom.current().nextLong(1_000_000_000_000_000L,
+                10_000_000_000_000_000L);
+        return String.valueOf(randomNum);
+    }
+
+    private BigDecimal getInitialBalance(AccountType type) {
+        return switch (type) {
+            case SAVINGS -> new BigDecimal("500.00");
+            case CURRENT -> new BigDecimal("2500.00");
+            case BUSINESS -> new BigDecimal("10000.00");
+            case SALARY -> BigDecimal.ZERO;
+        };
     }
 }

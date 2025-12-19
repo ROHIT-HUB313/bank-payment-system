@@ -1,6 +1,8 @@
 
 package com.bank.payment.bank.entity;
 
+import com.bank.payment.bank.enums.AccountStatus;
+import com.bank.payment.bank.enums.AccountType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,22 +28,24 @@ public class Account {
     @Column(name = "account_number", unique = true, nullable = false)
     private String accountNumber;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "account_type", nullable = false)
-    private String accountType;
+    private AccountType accountType;
 
     @Column(name = "ifsc_code", nullable = false)
     private String ifscCode;
 
-    @Column(name = "bank_address")
+    @Column(name = "bank_address", nullable = false)
     private String address;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "account_status", nullable = false)
-    private String accountStatus; // ACTIVE, BLOCKED, CLOSED
+    private AccountStatus accountStatus; // ACTIVE, BLOCKED, CLOSED
 
-    @Column(name = "created_by")
+    @Column(name = "created_by", nullable = false)
     private String createdBy;
 
-    @Column(name = "created_on")
+    @Column(name = "created_on", nullable = false)
     private LocalDateTime createdOn;
 
     @Column(name = "current_balance", nullable = false)
@@ -50,9 +54,9 @@ public class Account {
     @Column(name = "currency", nullable = false)
     private String currency;
 
-    @Column(name = "updated_by")
+    @Column(name = "updated_by", nullable = false)
     private String updatedBy;
 
-    @Column(name = "updated_on")
+    @Column(name = "updated_on", nullable = false)
     private LocalDateTime updatedOn;
 }
