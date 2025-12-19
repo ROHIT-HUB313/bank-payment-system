@@ -101,6 +101,7 @@ This is a **fully functional microservices-based banking system** that demonstra
 - **Spring Security** - JWT authentication
 - **Spring Data JPA** - Database abstraction
 - **Hibernate** - ORM framework
+- **MySQL 8.x** - Relational Database (Optimistic Locking enabled)
 
 ### **Database**
 - **MySQL** - Relational database
@@ -132,11 +133,11 @@ This is a **fully functional microservices-based banking system** that demonstra
 - ✅ Role-based access (USER, ADMIN)
 
 ### **2. Account Management (Bank-Engine)**
-- ✅ Account creation with unique account numbers
-- ✅ Balance management (credit/debit)
-- ✅ Account ownership validation
-- ✅ Automatic KYC update on account creation
-- ✅ Multi-currency support (USD default)
+- ✅ **Dynamic Account Creation** - Supports SAVINGS, CURRENT, BUSINESS, SALARY accounts
+- ✅ **16-Digit Account Numbers** - Secure, numeric, standard-compliant generation
+- ✅ **Smart Balance Initialization** - Pre-defined opening balances based on account type
+- ✅ **Database-Driven Branch Management** - Dynamic branch allocation (HDFC Mumbai, Delhi, etc.)
+- ✅ **Optimistic Locking** - Prevents concurrent balance modification conflicts (@Version)
 
 ### **3. Transaction Management (Transaction-Engine)**
 - ✅ Fund transfers between accounts
@@ -202,8 +203,16 @@ bank-payment-system/
 │   │   └── AccountController.java
 │   ├── service/
 │   │   └── AccountService.java
+│   ├── scheduler/
+│   │   └── InterestScheduler.java       # Daily Interest Calculation
+│   ├── config/
+│   │   └── BranchDataInitializer.java   # HDFC Branch Loader
 │   ├── entity/
-│   │   └── Account.java
+│   │   ├── Account.java
+│   │   └── Branch.java
+│   ├── repository/
+│   │   ├── AccountRepository.java
+│   │   └── BranchRepository.java
 │   ├── dto/
 │   │   └── BalanceModificationRequest.java
 │   └── exception/
@@ -554,8 +563,8 @@ public class AuthRequest {
 - [ ] Profile picture upload
 
 ### **Low Priority**
-- [ ] Multi-currency support
-- [ ] Scheduled transactions
+- [ ] Multi-currency support (USD/EUR expansion)
+- [ ] Scheduled transactions (Recurring Payments)
 - [ ] Transaction notifications
 - [ ] Analytics dashboard
 
