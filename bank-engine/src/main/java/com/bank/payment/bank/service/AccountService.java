@@ -6,13 +6,15 @@ import com.bank.payment.bank.entity.Account;
 import com.bank.payment.bank.exception.AccountNotFoundException;
 import com.bank.payment.bank.exception.InsufficientBalanceException;
 import com.bank.payment.bank.exception.InvalidAccountException;
-import com.bank.payment.bank.config.BranchConfig;
 import com.bank.payment.bank.dto.AccountResponse;
 import com.bank.payment.bank.dto.CreateAccountRequest;
 import com.bank.payment.bank.enums.AccountStatus;
 import com.bank.payment.bank.enums.AccountType;
+import com.bank.payment.bank.enums.AccountType;
 import com.bank.payment.bank.mapper.AccountMapper;
 import com.bank.payment.bank.repository.AccountRepository;
+import com.bank.payment.bank.repository.BranchRepository;
+import com.bank.payment.bank.entity.Branch;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,15 +31,15 @@ public class AccountService {
 
     private final AccountRepository repository;
     private final UserClient userClient;
-    private final BranchConfig branchConfig;
+    private final BranchRepository branchRepository;
     private final AccountMapper accountMapper;
 
     public AccountResponse createAccount(Long userId, String username, CreateAccountRequest request) {
         log.info("Creating account for user: {}, type: {}", userId, request.getAccountType());
 
-        String branchCode = request.getBranchCode() != null ? request.getBranchCode()
-                : branchConfig.getDefaultBranchCode();
-        BranchConfig.BranchDetails branchDetails = branchConfig.getBranchDetails(branchCode)
+        String branchCode = request.getBranchCode() != null ? request.getBranchCode() : "HEAD_OFFICE";
+
+        Branch branch = branchRepository.findByBranchCode(branchCode)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid Branch Code: " + branchCode));
 
         if (!"INR".equals(request.getCurrency())) {
@@ -56,8 +58,8 @@ public class AccountService {
 
         account.setCurrentBalance(getInitialBalance(type));
 
-        account.setIfscCode(branchDetails.getIfscCode());
-        account.setAddress(branchDetails.getAddress());
+        account.setIfscCode(branch.getIfscCode());
+        account.setAddress(branch.getAddress());
 
         account.setCreatedOn(LocalDateTime.now());
         account.setCreatedBy(username);
@@ -111,7 +113,7 @@ public class AccountService {
                     return new AccountNotFoundException("Account not found");
                 });
         account.setCurrentBalance(account.getCurrentBalance().add(request.getAmount()));
-        Account updated = repository.save(account);
+        Account updated = repository.save(account);// redundant inside transactional
         log.info("Account credited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
         return accountMapper.toResponse(updated);
@@ -133,7 +135,7 @@ public class AccountService {
                     "Insufficient funds");
         }
         account.setCurrentBalance(account.getCurrentBalance().subtract(request.getAmount()));
-        Account updated = repository.save(account);
+        Account updated = repository.save(account);// redundant inside transactional
         log.info("Account debited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
         return accountMapper.toResponse(updated);

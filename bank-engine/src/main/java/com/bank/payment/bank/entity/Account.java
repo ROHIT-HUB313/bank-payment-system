@@ -1,4 +1,3 @@
-
 package com.bank.payment.bank.entity;
 
 import com.bank.payment.bank.enums.AccountStatus;
@@ -59,4 +58,8 @@ public class Account {
 
     @Column(name = "updated_on", nullable = false)
     private LocalDateTime updatedOn;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 }
