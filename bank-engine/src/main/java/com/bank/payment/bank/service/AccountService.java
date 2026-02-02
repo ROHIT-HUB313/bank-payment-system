@@ -114,7 +114,7 @@ public class AccountService {
                     return new AccountNotFoundException("Account not found");
                 });
         account.setCurrentBalance(account.getCurrentBalance().add(request.getAmount()));
-        Account updated = repository.save(account);
+        Account updated = repository.save(account);// redundant inside transactional
         log.info("Account credited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
 
@@ -142,7 +142,7 @@ public class AccountService {
                     "Insufficient funds");
         }
         account.setCurrentBalance(account.getCurrentBalance().subtract(request.getAmount()));
-        Account updated = repository.save(account);
+        Account updated = repository.save(account);// redundant inside transactional
         log.info("Account debited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
 
