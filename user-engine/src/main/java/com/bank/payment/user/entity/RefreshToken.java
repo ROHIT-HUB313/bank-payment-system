@@ -28,6 +28,9 @@ public class RefreshToken {
     @Column(name = "username", nullable = false)
     private String username;
 
+    @Column(name = "role", nullable = false)
+    private String role;
+
     @Column(name = "expiry_date", nullable = false)
     private Instant expiryDate;
 

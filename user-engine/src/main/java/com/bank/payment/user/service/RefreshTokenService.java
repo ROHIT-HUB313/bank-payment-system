@@ -22,8 +22,8 @@ public class RefreshTokenService {
 
     /* Create a new refresh token for a user. Revokes any existing refresh tokens for the same user. */
     @Transactional
-    public RefreshToken createRefreshToken(Long userId, String username) {
-        log.info("Creating refresh token for user: {}", username);
+    public RefreshToken createRefreshToken(Long userId, String username, String role) {
+        log.info("Creating refresh token for user: {} with role: {}", username, role);
 
         // Revoke any existing refresh tokens for this user
         refreshTokenRepository.revokeAllByUserId(userId);
@@ -32,12 +32,14 @@ public class RefreshTokenService {
                 .token(UUID.randomUUID().toString())
                 .userId(userId)
                 .username(username)
+                .role(role)
                 .expiryDate(Instant.now().plusSeconds(REFRESH_TOKEN_VALIDITY))
                 .revoked(false)
                 .build();
 
         refreshToken = refreshTokenRepository.save(refreshToken);
-        log.info("Refresh token created for user: {}, expires at: {}", username, refreshToken.getExpiryDate());
+        log.info("Refresh token created for user: {}, role: {}, expires at: {}",
+                username, role, refreshToken.getExpiryDate());
 
         return refreshToken;
     }

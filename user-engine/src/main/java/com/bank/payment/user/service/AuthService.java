@@ -21,7 +21,7 @@ public class AuthService {
 
         private final RefreshTokenService refreshTokenService;
 
-        /*Authenticate user and generate both access token and refresh token.*/
+        /* Authenticate user and generate both access token and refresh token. */
         public AuthResponse authenticateAndGenerateToken(AuthRequest request) {
                 log.info("Authentication attempt for user: {}", request.getUsername());
 
@@ -43,7 +43,8 @@ public class AuthService {
                 // Generate refresh token (7 day validity)
                 RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                                 userDetails.getUserId(),
-                                userDetails.getUsername());
+                                userDetails.getUsername(),
+                                userDetails.getRole());
 
                 // this constructor returns a string, enabled allargsconstructor!
                 return AuthResponse.builder()
@@ -62,14 +63,12 @@ public class AuthService {
                 // Get user details from the refresh token
                 Long userId = refreshToken.getUserId();
                 String username = refreshToken.getUsername();
+                String role = refreshToken.getRole();
 
-                // We need to get the user's role - fetch from database
-                // For simplicity, we'll generate a token without role (or you can inject
-                // UserRepository)
-                // Here we assume a default USER role; in production, fetch actual role
-                String accessToken = jwtService.generateToken(userId, username, "USER");
+                // Generate new access token with the stored role
+                String accessToken = jwtService.generateToken(userId, username, role);
 
-                log.info("Access token refreshed for user: {}", username);
+                log.info("Access token refreshed for user: {} with role: {}", username, role);
 
                 return AuthResponse.builder()
                                 .token(accessToken)
