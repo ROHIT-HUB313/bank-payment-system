@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -227,7 +228,6 @@ public class TransactionService {
             return; // Already reversed
         }
 
-
         try {
             // Perform Reversal (Credit back the sender)
             AccountDto restoredAccount = bankClient.credit(BalanceModificationRequest.builder()
@@ -390,7 +390,25 @@ public class TransactionService {
         }
     }
 
-    public java.util.List<Transaction> getAllTransactions() {
+    public List<Transaction> getAllTransactions() {
         return repository.findAll();
+    }
+
+    /**
+     * Get transaction history for a specific account.
+     * Validates that the account belongs to the requesting user.
+     */
+    public List<Transaction> getTransactionHistory(String accountNumber, Long userId) {
+        log.info("Fetching transaction history for account: {}, userId: {}", accountNumber, userId);
+
+        // Security Check: Ownership
+        AccountDto account = bankClient.getAccount(accountNumber);
+        if (!account.getUserId().equals(userId)) {
+            log.error("Transaction history access denied: account {} does not belong to user {}",
+                    accountNumber, userId);
+            throw new RuntimeException("Unauthorized: Account does not belong to user");
+        }
+
+        return repository.findByAccountNumber(accountNumber);
     }
 }

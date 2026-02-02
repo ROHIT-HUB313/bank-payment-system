@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/transactions")
@@ -45,8 +46,16 @@ public class TransactionController {
         return service.withdraw(request, userId);
     }
 
+    @GetMapping("/public/history")
+    public List<Transaction> getTransactionHistory(
+            @RequestParam("accountNo") String accountNumber,
+            @RequestHeader("X-User-Id") Long userId) {
+        log.info("Transaction history request: account={}, userId={}", accountNumber, userId);
+        return service.getTransactionHistory(accountNumber, userId);
+    }
+
     @GetMapping("/internal/all")
-    public java.util.List<Transaction> getAllTransactions(@RequestHeader("X-Internal-Secret") String secret) {
+    public List<Transaction> getAllTransactions(@RequestHeader("X-Internal-Secret") String secret) {
         log.info("Get all transactions request received (internal)");
         if (!"bank-payment-system-internal-secret".equals(secret)) {
             log.error("Unauthorized access attempt to internal endpoint");
