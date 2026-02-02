@@ -1,11 +1,7 @@
 
 package com.bank.payment.user.controller;
 
-import com.bank.payment.user.dto.AuthRequest;
-import com.bank.payment.user.dto.AuthResponse;
-import com.bank.payment.user.dto.ResetPasswordRequest;
-import com.bank.payment.user.dto.UpdateProfileRequest;
-import com.bank.payment.user.dto.UserDto;
+import com.bank.payment.user.dto.*;
 import com.bank.payment.user.service.AuthService;
 import com.bank.payment.user.service.UserService;
 import jakarta.validation.Valid;
@@ -78,5 +74,20 @@ public class UserController {
     public String resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         log.info("Password reset request received for username: {}", request.getUsername());
         return service.resetPassword(request);
+    }
+
+    /* Refresh the access token using a valid refresh token.*/
+    @PostMapping("/public/refresh-token")
+    public AuthResponse refreshToken(@RequestBody RefreshTokenRequest request) {
+        log.info("Refresh token request received");
+        return authService.refreshAccessToken(request.getRefreshToken());
+    }
+
+    /* Logout - Revoke all refresh tokens for the authenticated user.*/
+    @PostMapping("/public/logout")
+    public ResponseEntity<String> logout(@RequestHeader("X-User-Id") Long userId) {
+        log.info("Logout request received for userId: {}", userId);
+        authService.logout(userId);
+        return ResponseEntity.ok("Logged out successfully");
     }
 }
