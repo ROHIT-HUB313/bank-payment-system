@@ -10,11 +10,11 @@ import com.bank.payment.bank.dto.AccountResponse;
 import com.bank.payment.bank.dto.CreateAccountRequest;
 import com.bank.payment.bank.enums.AccountStatus;
 import com.bank.payment.bank.enums.AccountType;
-import com.bank.payment.bank.enums.AccountType;
 import com.bank.payment.bank.mapper.AccountMapper;
 import com.bank.payment.bank.repository.AccountRepository;
 import com.bank.payment.bank.repository.BranchRepository;
 import com.bank.payment.bank.entity.Branch;
+import com.bank.payment.bank.websocket.BalanceWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +33,7 @@ public class AccountService {
     private final UserClient userClient;
     private final BranchRepository branchRepository;
     private final AccountMapper accountMapper;
+    private final BalanceWebSocketHandler webSocketHandler;
 
     public AccountResponse createAccount(Long userId, String username, CreateAccountRequest request) {
         log.info("Creating account for user: {}, type: {}", userId, request.getAccountType());
@@ -113,9 +114,15 @@ public class AccountService {
                     return new AccountNotFoundException("Account not found");
                 });
         account.setCurrentBalance(account.getCurrentBalance().add(request.getAmount()));
-        Account updated = repository.save(account);// redundant inside transactional
+        Account updated = repository.save(account);
         log.info("Account credited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
+
+        webSocketHandler.broadcastBalanceUpdate(
+                request.getAccountNumber(),
+                updated.getCurrentBalance(),
+                "CREDIT");
+
         return accountMapper.toResponse(updated);
     }
 
@@ -135,9 +142,15 @@ public class AccountService {
                     "Insufficient funds");
         }
         account.setCurrentBalance(account.getCurrentBalance().subtract(request.getAmount()));
-        Account updated = repository.save(account);// redundant inside transactional
+        Account updated = repository.save(account);
         log.info("Account debited successfully: accountNo={}, newBalance={}",
                 request.getAccountNumber(), updated.getCurrentBalance());
+
+        webSocketHandler.broadcastBalanceUpdate(
+                request.getAccountNumber(),
+                updated.getCurrentBalance(),
+                "DEBIT");
+
         return accountMapper.toResponse(updated);
     }
 
